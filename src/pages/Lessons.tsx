@@ -1,50 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, orderBy, onSnapshot, addDoc } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { BookOpen, Sparkles, Search, Filter, ChevronRight, Plus, Zap } from 'lucide-react';
-import { generateLesson } from '../lib/gemini';
+import { BookOpen, Sparkles, Search, ChevronRight, Plus, Zap } from 'lucide-react';
 import { LANGUAGES, DIFFICULTIES } from '../constants';
+import { lessons } from '../data/lessons';
 
 export default function Lessons({ isDarkMode }: { isDarkMode: boolean }) {
-  const [lessons, setLessons] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
-
-  useEffect(() => {
-    const q = query(collection(db, 'lessons'), orderBy('order', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const lessonsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLessons(lessonsData);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'lessons');
-    });
-    return () => unsubscribe();
-  }, []);
+  const [aiDifficulty, setAiDifficulty] = useState('beginner');
 
   const handleGenerateAI = async () => {
     if (!aiTopic) return;
     setIsGenerating(true);
-    try {
-      const lesson = await generateLesson(selectedLanguage === 'All' ? 'JavaScript' : selectedLanguage, aiTopic);
-      await addDoc(collection(db, 'lessons'), {
-        ...lesson,
-        language: selectedLanguage === 'All' ? 'javascript' : selectedLanguage.toLowerCase(),
-        order: lessons.length + 1,
-        createdAt: new Date().toISOString()
-      });
-      setAiTopic('');
-    } catch (error) {
-      console.error("Error generating lesson:", error);
-    } finally {
+    // Simulate AI generation
+    setTimeout(() => {
+      alert(`Mock AI generated lesson on: ${aiTopic} (${aiDifficulty})`);
       setIsGenerating(false);
-    }
+      setAiTopic('');
+    }, 1500);
   };
 
   const filteredLessons = lessons.filter(lesson => {
@@ -132,16 +109,27 @@ export default function Lessons({ isDarkMode }: { isDarkMode: boolean }) {
             <div className="text-sm opacity-70">Create custom lessons on the fly</div>
           </div>
         </div>
-        <div className="flex-1 w-full relative">
+        <div className="flex-1 w-full relative flex gap-4">
           <input
             type="text"
             placeholder="What do you want to learn today? (e.g., Advanced React Patterns)"
             value={aiTopic}
             onChange={(e) => setAiTopic(e.target.value)}
-            className={`w-full rounded-2xl px-6 py-4 border focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+            className={`flex-1 rounded-2xl px-6 py-4 border focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
               isDarkMode ? 'bg-black/20 border-white/10 text-white' : 'bg-white border-blue-200 text-gray-900'
             }`}
           />
+          <select
+            value={aiDifficulty}
+            onChange={(e) => setAiDifficulty(e.target.value)}
+            className={`rounded-2xl px-4 py-4 border focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+              isDarkMode ? 'bg-black/20 border-white/10 text-white' : 'bg-white border-blue-200 text-gray-900'
+            }`}
+          >
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
         </div>
         <button
           onClick={handleGenerateAI}
@@ -161,69 +149,61 @@ export default function Lessons({ isDarkMode }: { isDarkMode: boolean }) {
         </button>
       </motion.div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className={`h-80 rounded-3xl animate-pulse ${isDarkMode ? 'bg-white/5' : 'bg-gray-200'}`} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-          {filteredLessons.map((lesson, index) => (
-            <motion.div
-              key={lesson.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.05 }}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        {filteredLessons.map((lesson, index) => (
+          <motion.div
+            key={lesson.id}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: index * 0.05 }}
+          >
+            <Link
+              to={`/lessons/${lesson.id}`}
+              className={`group block p-10 rounded-[2.5rem] border transition-all duration-500 relative overflow-hidden h-full flex flex-col ${
+                isDarkMode 
+                  ? 'bg-[#1E1E2F] border-white/5 hover:border-blue-500/30' 
+                  : 'bg-white border-gray-200 hover:border-blue-500/30 shadow-xl'
+              }`}
             >
-              <Link
-                to={`/lessons/${lesson.id}`}
-                className={`group block p-10 rounded-[2.5rem] border transition-all duration-500 relative overflow-hidden h-full flex flex-col ${
-                  isDarkMode 
-                    ? 'bg-[#1E1E2F] border-white/5 hover:border-blue-500/30' 
-                    : 'bg-white border-gray-200 hover:border-blue-500/30 shadow-xl'
-                }`}
-              >
-                <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
-                  <BookOpen className="w-32 h-32" />
+              <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
+                <BookOpen className="w-32 h-32" />
+              </div>
+              
+              <div className="flex items-center justify-between mb-8">
+                <span className={`inline-block px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest ${
+                  lesson.language === 'javascript' ? 'bg-yellow-400/10 text-yellow-500' :
+                  lesson.language === 'python' ? 'bg-blue-400/10 text-blue-500' :
+                  'bg-purple-400/10 text-purple-500'
+                }`}>
+                  {lesson.language}
+                </span>
+                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                  <Zap className={`w-4 h-4 ${
+                    lesson.difficulty === 'beginner' ? 'text-green-500' :
+                    lesson.difficulty === 'intermediate' ? 'text-yellow-500' : 'text-red-500'
+                  }`} />
                 </div>
-                
-                <div className="flex items-center justify-between mb-8">
-                  <span className={`inline-block px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest ${
-                    lesson.language === 'javascript' ? 'bg-yellow-400/10 text-yellow-500' :
-                    lesson.language === 'python' ? 'bg-blue-400/10 text-blue-500' :
-                    'bg-purple-400/10 text-purple-500'
-                  }`}>
-                    {lesson.language}
-                  </span>
-                  <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
-                    <Zap className={`w-4 h-4 ${
-                      lesson.difficulty === 'beginner' ? 'text-green-500' :
-                      lesson.difficulty === 'intermediate' ? 'text-yellow-500' : 'text-red-500'
-                    }`} />
-                  </div>
+              </div>
+              
+              <h3 className="text-2xl font-display font-bold mb-4 group-hover:text-blue-500 transition-colors leading-tight">{lesson.title}</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-base mb-10 line-clamp-3 leading-relaxed">
+                {lesson.content}
+              </p>
+              
+              <div className="mt-auto pt-6 border-t border-gray-100 dark:border-white/5 flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                  {lesson.difficulty}
+                </span>
+                <div className="flex items-center text-blue-500 font-bold text-sm group-hover:translate-x-2 transition-transform">
+                  Start Learning
+                  <ChevronRight className="w-4 h-4 ml-1" />
                 </div>
-                
-                <h3 className="text-2xl font-display font-bold mb-4 group-hover:text-blue-500 transition-colors leading-tight">{lesson.title}</h3>
-                <p className="text-gray-500 dark:text-gray-400 text-base mb-10 line-clamp-3 leading-relaxed">
-                  {lesson.content.replace(/[#*`]/g, '').substring(0, 120)}...
-                </p>
-                
-                <div className="mt-auto pt-6 border-t border-gray-100 dark:border-white/5 flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    {lesson.difficulty}
-                  </span>
-                  <div className="flex items-center text-blue-500 font-bold text-sm group-hover:translate-x-2 transition-transform">
-                    Start Learning
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </div>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      )}
+              </div>
+            </Link>
+          </motion.div>
+        ))}
+      </div>
     </div>
   );
 }

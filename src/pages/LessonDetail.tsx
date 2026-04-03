@@ -1,93 +1,56 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc, arrayUnion, increment } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, Play, CheckCircle2, Terminal, Sparkles, Zap, BookOpen } from 'lucide-react';
+import { ChevronLeft, Play, CheckCircle2, Terminal, Sparkles, Zap } from 'lucide-react';
 
 export default function LessonDetail({ isDarkMode }: { isDarkMode: boolean }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [lesson, setLesson] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [code, setCode] = useState('');
+  
+  // Mock lesson data
+  const lesson = {
+    id: id,
+    title: id === 'js-basics' ? 'JavaScript Basics' : id === 'css-flexbox' ? 'CSS Flexbox' : 'React Hooks',
+    language: id === 'js-basics' ? 'JavaScript' : id === 'css-flexbox' ? 'CSS' : 'React',
+    difficulty: 'beginner',
+    content: '# Welcome\nThis is a mock lesson content.',
+    codeExample: 'console.log("Hello World");',
+    challenge: {
+      description: 'Print "Hello World" to the console.',
+      points: 50,
+      solution: 'hello world'
+    }
+  };
+
+  const [code, setCode] = useState(lesson.codeExample || '');
   const [output, setOutput] = useState<string[]>([]);
   const [isCompleted, setIsCompleted] = useState(false);
   const [activeTab, setActiveTab] = useState<'content' | 'challenge'>('content');
   const [challengeStatus, setChallengeStatus] = useState<'idle' | 'success' | 'error'>('idle');
-
-  useEffect(() => {
-    if (!id) return;
-    const unsubscribe = onSnapshot(doc(db, 'lessons', id), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setLesson(data);
-        setCode(data.codeExample || '');
-      }
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `lessons/${id}`);
-    });
-    return () => unsubscribe();
-  }, [id]);
-
   const [isRunning, setIsRunning] = useState(false);
 
   const runCode = async () => {
     setOutput([]);
     setIsRunning(true);
 
-    const lang = lesson.language?.toLowerCase();
-    
-    if (['javascript', 'html', 'css'].includes(lang)) {
-      // Frontend execution
-      if (lang === 'javascript') {
-        const originalLog = console.log;
-        const logs: string[] = [];
-        console.log = (...args) => {
-          logs.push(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '));
-        };
+    // Simple JS execution for demo
+    const originalLog = console.log;
+    const logs: string[] = [];
+    console.log = (...args) => {
+      logs.push(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '));
+    };
 
-        try {
-          new Function(code)();
-          setOutput(logs);
-          checkChallenge(code, logs);
-        } catch (err: any) {
-          setOutput([`Error: ${err.message}`]);
-        } finally {
-          console.log = originalLog;
-          setIsRunning(false);
-        }
-      } else {
-        // HTML/CSS - we can't easily show output in a console, but we could show a preview
-        // For now, just simulate success if it contains required tags
-        setOutput(['Frontend code executed. See preview (coming soon).']);
-        checkChallenge(code, []);
-        setIsRunning(false);
-      }
-    } else {
-      // Backend execution via Piston API
-      try {
-        const response = await fetch('https://emkc.org/api/v2/piston/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            language: lang === 'cpp' ? 'cpp' : lang,
-            version: '*',
-            files: [{ content: code }]
-          })
-        });
-        const result = await response.json();
-        const out = result.run.stdout || result.run.stderr || 'No output';
-        setOutput(out.split('\n'));
-        checkChallenge(code, out.split('\n'));
-      } catch (err: any) {
-        setOutput([`Execution Error: ${err.message}`]);
-      } finally {
-        setIsRunning(false);
-      }
+    try {
+      new Function(code)();
+      setOutput(logs);
+      checkChallenge(code, logs);
+    } catch (err: any) {
+      setOutput([`Error: ${err.message}`]);
+    } finally {
+      console.log = originalLog;
+      setIsRunning(false);
     }
   };
 
@@ -100,38 +63,12 @@ export default function LessonDetail({ isDarkMode }: { isDarkMode: boolean }) {
 
     if (isSolved) {
       setChallengeStatus('success');
-      handleComplete();
+      setIsCompleted(true);
     } else {
       setChallengeStatus('error');
       setTimeout(() => setChallengeStatus('idle'), 3000);
     }
   };
-
-  const handleComplete = async () => {
-    if (!auth.currentUser || isCompleted) return;
-    setIsCompleted(true);
-    const userRef = doc(db, 'users', auth.currentUser.uid);
-    try {
-      await updateDoc(userRef, {
-        completedLessons: arrayUnion(id),
-        points: increment(50)
-      });
-    } catch (error) {
-      console.error("Error updating user points:", error);
-    }
-  };
-
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
-      />
-    </div>
-  );
-
-  if (!lesson) return <div className="text-center py-20">Lesson not found</div>;
 
   return (
     <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -206,11 +143,11 @@ export default function LessonDetail({ isDarkMode }: { isDarkMode: boolean }) {
                       <h3 className="text-xl font-display font-bold">Mini Challenge</h3>
                     </div>
                     <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-8 text-lg">
-                      {lesson.challenge?.description || "Solve the coding task to earn points!"}
+                      {lesson.challenge.description}
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-widest text-blue-500 bg-blue-500/10 px-4 py-2 rounded-xl">
-                        +{lesson.challenge?.points || 50} XP Reward
+                        +{lesson.challenge.points} XP Reward
                       </span>
                     </div>
                   </div>
@@ -226,7 +163,7 @@ export default function LessonDetail({ isDarkMode }: { isDarkMode: boolean }) {
                       </div>
                       <div>
                         <h4 className="text-xl font-display font-bold text-green-500">Challenge Completed!</h4>
-                        <p className="text-green-500/70">Great job! You've earned 50 XP.</p>
+                        <p className="text-green-500/70">Great job! You've earned {lesson.challenge.points} XP.</p>
                       </div>
                     </motion.div>
                   )}
@@ -272,7 +209,7 @@ export default function LessonDetail({ isDarkMode }: { isDarkMode: boolean }) {
           <div className="flex-1 min-h-0">
             <Editor
               height="100%"
-              defaultLanguage={lesson.language?.toLowerCase() || 'javascript'}
+              defaultLanguage={lesson.language.toLowerCase()}
               theme={isDarkMode ? "vs-dark" : "light"}
               value={code}
               onChange={(val) => setCode(val || '')}
@@ -284,6 +221,41 @@ export default function LessonDetail({ isDarkMode }: { isDarkMode: boolean }) {
                 padding: { top: 20 },
                 lineNumbers: 'on',
                 roundedSelection: true,
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: true,
+                parameterHints: { enabled: true },
+              }}
+              onMount={(editor, monaco) => {
+                // Add some basic custom suggestions for common languages
+                const languages = ['javascript', 'python', 'cpp', 'java'];
+                languages.forEach(lang => {
+                  monaco.languages.registerCompletionItemProvider(lang, {
+                    provideCompletionItems: () => {
+                      return {
+                        suggestions: [
+                          {
+                            label: 'print',
+                            kind: monaco.languages.CompletionItemKind.Function,
+                            insertText: 'print(${1:value});',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          },
+                          {
+                            label: 'log',
+                            kind: monaco.languages.CompletionItemKind.Function,
+                            insertText: 'console.log(${1:value});',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          },
+                          {
+                            label: 'function',
+                            kind: monaco.languages.CompletionItemKind.Keyword,
+                            insertText: 'function ${1:name}(${2:args}) {\n\t${3:body}\n}',
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                          }
+                        ]
+                      };
+                    }
+                  });
+                });
               }}
             />
           </div>

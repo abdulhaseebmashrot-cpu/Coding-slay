@@ -1,45 +1,30 @@
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { auth, signIn, logout, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Code2, BookOpen, Trophy, User, LogIn, LogOut, Menu, X, Search, Sparkles, ChevronRight, Github, Twitter, Linkedin, Sun, Moon } from 'lucide-react';
-import { seedDatabase } from './seed';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Home from './pages/Home';
 import Lessons from './pages/Lessons';
 import Challenges from './pages/Challenges';
 import Profile from './pages/Profile';
-import Admin from './pages/Admin';
 import Leaderboard from './pages/Leaderboard';
+import Community from './pages/Community';
 import Playground from './pages/Playground';
 import LessonDetail from './pages/LessonDetail';
+import SignIn from './pages/SignIn';
 
 export default function App() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
-
-  useEffect(() => {
-    seedDatabase();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) {
-        const userDoc = doc(db, 'users', user.uid);
-        onSnapshot(userDoc, (doc) => {
-          setUserData(doc.data());
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
-        });
-      } else {
-        setUserData(null);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     if (isDarkMode) {
@@ -48,18 +33,6 @@ export default function App() {
       document.documentElement.classList.add('light-mode');
     }
   }, [isDarkMode]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#121212] flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
-        />
-      </div>
-    );
-  }
 
   return (
     <Router>
@@ -73,7 +46,7 @@ export default function App() {
                   <Code2 className="w-7 h-7 text-white" />
                 </div>
                 <span className="text-2xl font-display font-bold tracking-tight">
-                  CodeMaster<span className="text-blue-500">Hub</span>
+                  Dev<span className="text-blue-500">Nexus</span>
                 </span>
               </Link>
 
@@ -83,8 +56,25 @@ export default function App() {
                 <NavLink to="/challenges" icon={<Trophy className="w-4 h-4" />} label="Challenges" isDarkMode={isDarkMode} />
                 <NavLink to="/playground" icon={<Code2 className="w-4 h-4" />} label="Playground" isDarkMode={isDarkMode} />
                 <NavLink to="/leaderboard" icon={<Search className="w-4 h-4" />} label="Leaderboard" isDarkMode={isDarkMode} />
+                <NavLink to="/community" icon={<User className="w-4 h-4" />} label="Community" isDarkMode={isDarkMode} />
                 
                 <div className="h-6 w-px bg-gray-300 dark:bg-white/10 mx-2" />
+
+                {user ? (
+                  <div className="flex items-center gap-4">
+                    <Link to="/profile" className="flex items-center gap-2">
+                      <img src={user.photoURL} alt={user.displayName} className="w-8 h-8 rounded-full" />
+                      <span className="text-sm font-bold">{user.displayName}</span>
+                    </Link>
+                    <button onClick={signOut} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-red-400">
+                      <LogOut className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <Link to="/signin" className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm">
+                    Sign In
+                  </Link>
+                )}
 
                 <button
                   onClick={() => setIsDarkMode(!isDarkMode)}
@@ -92,35 +82,6 @@ export default function App() {
                 >
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </button>
-
-                {user ? (
-                  <div className="flex items-center space-x-5">
-                    <Link to="/profile" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-                      <div className="relative">
-                        <img src={user.photoURL || ''} alt="Profile" className="w-10 h-10 rounded-xl border-2 border-blue-500/20" />
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-[#121212] rounded-full" />
-                      </div>
-                      <div className="hidden lg:block">
-                        <div className="text-sm font-bold leading-none mb-1">{user.displayName?.split(' ')[0]}</div>
-                        <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">{userData?.points || 0} PTS</div>
-                      </div>
-                    </Link>
-                    <button
-                      onClick={logout}
-                      className={`p-2.5 rounded-xl transition-colors ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-red-400' : 'hover:bg-gray-100 text-gray-500 hover:text-red-500'}`}
-                    >
-                      <LogOut className="w-5 h-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={signIn}
-                    className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all duration-300 shadow-xl shadow-blue-600/20 active:scale-95"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Sign In</span>
-                  </button>
-                )}
               </div>
 
               {/* Mobile menu button */}
@@ -154,24 +115,13 @@ export default function App() {
                   <MobileNavLink to="/lessons" label="Lessons" isDarkMode={isDarkMode} onClick={() => setIsMenuOpen(false)} />
                   <MobileNavLink to="/challenges" label="Challenges" isDarkMode={isDarkMode} onClick={() => setIsMenuOpen(false)} />
                   <MobileNavLink to="/leaderboard" label="Leaderboard" isDarkMode={isDarkMode} onClick={() => setIsMenuOpen(false)} />
+                  <MobileNavLink to="/community" label="Community" isDarkMode={isDarkMode} onClick={() => setIsMenuOpen(false)} />
                   {user ? (
-                    <>
-                      <div className="h-px bg-white/5 my-4" />
-                      <MobileNavLink to="/profile" label="Profile" isDarkMode={isDarkMode} onClick={() => setIsMenuOpen(false)} />
-                      <button
-                        onClick={() => { logout(); setIsMenuOpen(false); }}
-                        className="w-full text-left px-4 py-3 text-red-400 hover:bg-white/5 rounded-lg transition-colors font-bold"
-                      >
-                        Sign Out
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => { signIn(); setIsMenuOpen(false); }}
-                      className="w-full mt-4 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold text-center"
-                    >
-                      Sign In
+                    <button onClick={() => { signOut(); setIsMenuOpen(false); }} className="block w-full text-left px-4 py-4 rounded-2xl text-lg font-bold text-red-400">
+                      Sign Out
                     </button>
+                  ) : (
+                    <MobileNavLink to="/signin" label="Sign In" isDarkMode={isDarkMode} onClick={() => setIsMenuOpen(false)} />
                   )}
                 </div>
               </motion.div>
@@ -187,10 +137,13 @@ export default function App() {
             <Route path="/lessons/:id" element={<LessonDetail isDarkMode={isDarkMode} />} />
             <Route path="/challenges" element={<Challenges isDarkMode={isDarkMode} />} />
             <Route path="/playground" element={<Playground isDarkMode={isDarkMode} />} />
-            <Route path="/profile" element={<Profile user={user} userData={userData} isDarkMode={isDarkMode} />} />
+            <Route path="/profile" element={<Profile isDarkMode={isDarkMode} />} />
             <Route path="/leaderboard" element={<Leaderboard isDarkMode={isDarkMode} />} />
+            <Route path="/community" element={<Community isDarkMode={isDarkMode} />} />
+            <Route path="/signin" element={<SignIn isDarkMode={isDarkMode} />} />
           </Routes>
         </main>
+
 
         {/* Footer */}
         <footer className={`border-t py-20 transition-colors duration-300 ${isDarkMode ? 'bg-[#121212] border-white/5' : 'bg-gray-50 border-gray-200'}`}>
@@ -201,7 +154,7 @@ export default function App() {
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Code2 className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-2xl font-display font-bold">CodeSlay</span>
+                  <span className="text-2xl font-display font-bold">DevNexus</span>
                 </div>
                 <p className="text-gray-500 dark:text-gray-400 max-w-md leading-relaxed text-lg">
                   Empowering the next generation of developers with interactive learning, AI-driven insights, and a global community.
@@ -218,7 +171,7 @@ export default function App() {
                   <li><Link to="/lessons" className="hover:text-blue-500 transition-colors">Curriculum</Link></li>
                   <li><Link to="/challenges" className="hover:text-blue-500 transition-colors">Challenges</Link></li>
                   <li><Link to="/leaderboard" className="hover:text-blue-500 transition-colors">Leaderboard</Link></li>
-                  <li><Link to="/profile" className="hover:text-blue-500 transition-colors">User Profile</Link></li>
+                  <li><Link to="/community" className="hover:text-blue-500 transition-colors">Community</Link></li>
                 </ul>
               </div>
               <div>
@@ -232,7 +185,7 @@ export default function App() {
               </div>
             </div>
             <div className="border-t border-gray-200 dark:border-white/5 mt-20 pt-10 flex flex-col md:flex-row justify-between items-center gap-6 text-gray-500 text-sm">
-              <p>© 2026 CodeSlay. Built with passion for developers.</p>
+              <p>© 2026 DevNexus. Built with passion for developers.</p>
               <div className="flex space-x-8">
                 <a href="#" className="hover:text-blue-500 transition-colors">Privacy Policy</a>
                 <a href="#" className="hover:text-blue-500 transition-colors">Terms of Service</a>
