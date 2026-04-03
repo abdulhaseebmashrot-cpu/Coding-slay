@@ -1,0 +1,9 @@
+{
+  "name": "CodeSlay",
+  "description": "A professional dark-themed code learning platform with AI-generated lessons, interactive challenges, and community features.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

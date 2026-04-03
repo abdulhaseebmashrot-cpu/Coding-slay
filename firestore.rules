@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - photoURL: string (optional)
+    //   - points: number (required)
+    //   - completedLessons: list (required)
+    //   - completedChallenges: list (required)
+    //   - role: string (required, 'user' or 'admin')
+    //   - createdAt: timestamp (required)
+    //
+    // Subcollection: users/{uid}/private/data
+    // Fields:
+    //   - email: string (required)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: lessons
+    // Document ID: {lessonId}
+    // Fields:
+    //   - id: string (required)
+    //   - language: string (required)
+    //   - title: string (required)
+    //   - content: string (required)
+    //   - codeExample: string (optional)
+    //   - difficulty: string (required)
+    //   - order: number (required)
+    //
+    // Collection: challenges
+    // Document ID: {challengeId}
+    // Fields:
+    //   - id: string (required)
+    //   - language: string (required)
+    //   - title: string (required)
+    //   - description: string (required)
+    //   - initialCode: string (optional)
+    //   - testCases: list (required)
+    //   - points: number (required)
+    //   - difficulty: string (required)
+    //
+    // Collection: comments
+    // Document ID: {commentId}
+    // Fields:
+    //   - lessonId: string (required)
+    //   - uid: string (required)
+    //   - userName: string (required)
+    //   - userPhoto: string (optional)
+    //   - text: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "abdulhaseebmashrot@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'points', 'completedLessons', 'completedChallenges', 'role']) &&
+             data.uid is string &&
+             data.displayName is string && data.displayName.size() < 100 &&
+             data.points is number &&
+             data.completedLessons is list &&
+             data.completedChallenges is list &&
+             data.role in ['user', 'admin'];
+    }
+
+    function isValidPrivateData(data) {
+      return data.keys().hasAll(['email', 'updatedAt']) &&
+             data.email is string && isValidEmail(data.email) &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll(['language', 'title', 'content', 'difficulty']) &&
+             data.language in ['html', 'css', 'javascript', 'python', 'java', 'cpp'] &&
+             data.title is string && data.title.size() < 200 &&
+             data.content is string && data.content.size() < 10000 &&
+             data.difficulty in ['beginner', 'intermediate', 'advanced'];
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['lessonId', 'uid', 'userName', 'text', 'createdAt']) &&
+             data.lessonId is string &&
+             data.uid == request.auth.uid &&
+             data.userName is string && data.userName.size() < 100 &&
+             data.text is string && data.text.size() < 1000 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Allow public read of profiles (no PII)
+      allow read: if true;
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+
+      match /private/data {
+        allow read, write: if isOwner(userId) && isValidPrivateData(request.resource.data);
+      }
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidComment(request.resource.data);
+      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.uid || isAdmin());
+    }
+  }
+}

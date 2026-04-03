@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile information, progress, and stats.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth" },
+        "displayName": { "type": "string", "description": "User's display name" },
+        "email": { "type": "string", "description": "User's email address" },
+        "photoURL": { "type": "string", "description": "User's profile picture URL" },
+        "points": { "type": "number", "description": "Total points earned from challenges" },
+        "completedLessons": { "type": "array", "items": { "type": "string" }, "description": "List of lesson IDs completed" },
+        "completedChallenges": { "type": "array", "items": { "type": "string" }, "description": "List of challenge IDs completed" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User's role in the system" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "displayName", "email"]
+    },
+    "Lesson": {
+      "title": "Programming Lesson",
+      "description": "A lesson for a specific programming language.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "language": { "type": "string", "enum": ["html", "css", "javascript", "python", "java", "cpp"] },
+        "title": { "type": "string" },
+        "content": { "type": "string", "description": "Markdown content of the lesson" },
+        "codeExample": { "type": "string", "description": "Initial code for the interactive editor" },
+        "difficulty": { "type": "string", "enum": ["beginner", "intermediate", "advanced"] },
+        "order": { "type": "number" }
+      },
+      "required": ["language", "title", "content"]
+    },
+    "Challenge": {
+      "title": "Coding Challenge",
+      "description": "A coding task with automatic validation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "language": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "initialCode": { "type": "string" },
+        "testCases": { "type": "array", "items": { "type": "object", "properties": { "input": { "type": "string" }, "expectedOutput": { "type": "string" } } } },
+        "points": { "type": "number" },
+        "difficulty": { "type": "string" }
+      },
+      "required": ["language", "title", "description", "points"]
+    },
+    "Comment": {
+      "title": "Lesson Comment",
+      "description": "User feedback on a lesson.",
+      "type": "object",
+      "properties": {
+        "lessonId": { "type": "string" },
+        "uid": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["lessonId", "uid", "text"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/lessons/{lessonId}": { "schema": "Lesson", "description": "Prebuilt lessons" },
+    "/challenges/{challengeId}": { "schema": "Challenge", "description": "Coding challenges" },
+    "/comments/{commentId}": { "schema": "Comment", "description": "User comments on lessons" }
+  }
+}
